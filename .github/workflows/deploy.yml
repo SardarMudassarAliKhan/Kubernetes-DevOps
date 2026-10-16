@@ -30,7 +30,7 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          docker build -t ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} -f Dockerfile .
+          docker build -t ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} -f Kubernetes-DevOps/Dockerfile .
           docker push ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
 
   deploy-dev:
