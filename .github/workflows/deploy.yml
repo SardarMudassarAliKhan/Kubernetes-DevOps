@@ -2,12 +2,15 @@
 
 on:
   push:
+    # Trigger the workflow when code is pushed to any of these three branches
     branches:
       - main
+      - qa
+      - dev
   workflow_dispatch:
 
 env:
-  REGISTRY_NAME: mudassaracr99.azurecr.io # Replace with your actual ACR login server
+  REGISTRY_NAME: mudassaracr99.azurecr.io 
   APP_NAME: kubernetes-devops
   RESOURCE_GROUP: linux-admin-course
   CLUSTER_NAME: mudassar-kubi-course
@@ -19,15 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
       - name: ACR Login
         run: az acr login --name ${{ env.REGISTRY_NAME }}
-
       - name: Build and Push Docker Image
         run: |
           docker build -t ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} -f Kubernetes-DevOps/Dockerfile .
@@ -36,6 +36,8 @@ jobs:
   deploy-dev:
     name: Deploy to DEV
     needs: build-and-push
+    # Only run this job if the branch is 'dev'
+    if: github.ref_name == 'dev'
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -58,7 +60,10 @@ jobs:
 
   deploy-qa:
     name: Deploy to QA
-    needs: deploy-dev
+    # Now depends only on the build job, not the dev deployment
+    needs: build-and-push
+    # Only run this job if the branch is 'qa'
+    if: github.ref_name == 'qa'
     runs-on: ubuntu-latest
     environment: qa
     steps:
@@ -81,7 +86,10 @@ jobs:
 
   deploy-prod:
     name: Deploy to PROD
-    needs: deploy-qa
+    # Now depends only on the build job, not the qa deployment
+    needs: build-and-push
+    # Only run this job if the branch is 'main'
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     environment: prod
     steps:
