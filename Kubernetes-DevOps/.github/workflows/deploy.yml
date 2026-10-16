@@ -1,0 +1,103 @@
+﻿name: Deploy .NET 9 API to DEV, QA, PROD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY_NAME: mudassaracr99.azurecr.io # Replace with your actual ACR login server
+  APP_NAME: kubernetes-devops
+  RESOURCE_GROUP: linux-admin-course
+  CLUSTER_NAME: mudassar-kubi-course
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-and-push:
+    name: Build & Push to ACR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.REGISTRY_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }} -f Dockerfile .
+          docker push ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+
+  deploy-dev:
+    name: Deploy to DEV
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+      - name: Deploy to DEV Namespace
+        uses: azure/k8s-deploy@v4
+        with:
+          namespace: dev
+          manifests: |
+            k8s/deployment.yaml
+            k8s/service.yaml
+          images: ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+
+  deploy-qa:
+    name: Deploy to QA
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+      - name: Deploy to QA Namespace
+        uses: azure/k8s-deploy@v4
+        with:
+          namespace: qa
+          manifests: |
+            k8s/deployment.yaml
+            k8s/service.yaml
+          images: ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
+
+  deploy-prod:
+    name: Deploy to PROD
+    needs: deploy-qa
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+      - name: Deploy to PROD Namespace
+        uses: azure/k8s-deploy@v4
+        with:
+          namespace: prod
+          manifests: |
+            k8s/deployment.yaml
+            k8s/service.yaml
+          images: ${{ env.REGISTRY_NAME }}/${{ env.APP_NAME }}:${{ env.IMAGE_TAG }}
